@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cluster Truck - لعبة القفز بين الشاحنات</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            cursor: none;
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #score-container {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 15px 25px;
+            color: #fff;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+        #score-container .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            opacity: 0.8;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        #score-container .value {
+            font-size: 48px;
+            font-weight: 900;
+            line-height: 1;
+            background: linear-gradient(135deg, #fff 0%, #ffdd57 50%, #fff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: none;
+            filter: drop-shadow(0 0 15px rgba(255, 215, 87, 0.6));
+        }
+        #score-container .biome-indicator {
+            font-size: 11px;
+            margin-top: 6px;
+            opacity: 0.7;
+            letter-spacing: 2px;
+            font-weight: bold;
+            transition: color 0.5s;
+        }
+
+        #death-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 20;
+            pointer-events: auto;
+            background: radial-gradient(ellipse at center,
+                    rgba(255, 0, 0, 0.5) 0%,
+                    rgba(0, 0, 0, 0.85) 70%);
+            animation: deathPulse 0.6s ease-out;
+        }
+        @keyframes deathPulse {
+            0% {
+                background: radial-gradient(ellipse at center,
+                        rgba(255, 50, 0, 0.9) 0%,
+                        rgba(0, 0, 0, 0.95) 50%);
+            }
+            100% {
+                background: radial-gradient(ellipse at center,
+                        rgba(255, 0, 0, 0.5) 0%,
+                        rgba(0, 0, 0, 0.85) 70%);
+            }
+        }
+        #death-overlay .death-title {
+            font-size: 60px;
+            font-weight: 900;
+            color: #ff3333;
+            text-shadow: 0 0 60px #ff0000, 0 0 120px #ff0000, 0 4px 8px rgba(0, 0, 0, 0.8);
+            animation: shakeText 0.5s ease-in-out;
+            letter-spacing: 5px;
+        }
+        @keyframes shakeText {
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+            20% {
+                transform: translateX(-15px);
+            }
+            40% {
+                transform: translateX(15px);
+            }
+            60% {
+                transform: translateX(-10px);
+            }
+            80% {
+                transform: translateX(10px);
+            }
+        }
+        #death-overlay .death-sub {
+            font-size: 18px;
+            color: #ffaaaa;
+            margin-top: 10px;
+            letter-spacing: 3px;
+            opacity: 0.9;
+        }
+        #death-overlay .final-score {
+            font-size: 36px;
+            color: #fff;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        #btn-restart {
+            pointer-events: auto;
+            margin-top: 25px;
+            padding: 16px 50px;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 3px;
+            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+            color: #fff;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(255, 0, 0, 0.5), 0 0 80px rgba(255, 0, 0, 0.3);
+            transition: all 0.3s;
+            text-transform: uppercase;
+            position: relative;
+            overflow: hidden;
+        }
+        #btn-restart:hover {
+            transform: scale(1.08);
+            box-shadow: 0 12px 40px rgba(255, 0, 0, 0.7), 0 0 120px rgba(255, 0, 0, 0.5);
+            background: linear-gradient(135deg, #ff5555 0%, #dd1111 100%);
+        }
+        #btn-restart:active {
+            transform: scale(0.95);
+            transition: transform 0.1s;
+        }
+
+        #controls-hint {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+            letter-spacing: 2px;
+            transition: opacity 0.5s;
+            text-align: center;
+        }
+
+        /* شاشة اهتزاز */
+        .screen-shake {
+            animation: screenShake 0.4s ease-out;
+        }
+        @keyframes screenShake {
+            0%,
+            100% {
+                transform: translate(0);
+            }
+            10% {
+                transform: translate(-8px, 5px);
+            }
+            20% {
+                transform: translate(8px, -4px);
+            }
+            30% {
+                transform: translate(-6px, -3px);
+            }
+            40% {
+                transform: translate(6px, 4px);
+            }
+            50% {
+                transform: translate(-4px, -2px);
+            }
+            60% {
+                transform: translate(4px, 2px);
+            }
+            70% {
+                transform: translate(-2px, 1px);
+            }
+            80% {
+                transform: translate(2px, -1px);
+            }
+            90% {
+                transform: translate(-1px, 0);
+            }
+        }
+
+        @media (max-width: 600px) {
+            #score-container {
+                top: 15px;
+                right: 10px;
+                padding: 10px 16px;
+                border-radius: 15px;
+            }
+            #score-container .value {
+                font-size: 32px;
+            }
+            #death-overlay .death-title {
+                font-size: 36px;
+            }
+            #btn-restart {
+                padding: 14px 35px;
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div id="score-container">
+            <div class="label">المسافة</div>
+            <div class="value" id="score-value">0</div>
+            <div class="biome-indicator" id="biome-name">🏜️ صحراء</div>
+        </div>
+
+        <div id="death-overlay">
+            <div class="death-title">💀 خسرت!</div>
+            <div class="death-sub">سقطت على الأرض</div>
+            <div class="final-score" id="final-score">المسافة: 0</div>
+            <button id="btn-restart">🔄 رجوع</button>
+        </div>
+
+        <div id="controls-hint">
+            ⌨️ A / D أو ➡️ ⬅️ للتحريك | 📱 اسحب على الجوال
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // ==================== المتغيرات الأساسية ====================
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.3, 200);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // ==================== الصوت (Web Audio API) ====================
+        let audioCtx = null;
+        let musicGain = null;
+        let musicPlaying = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+                musicGain = audioCtx.createGain();
+                musicGain.gain.value = 0.06;
+                musicGain.connect(audioCtx.destination);
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            if (!musicPlaying) startBackgroundMusic();
+        }
+
+        function playSound(freq, type, duration, vol = 0.2, glideTo = null) {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, t);
+            if (glideTo) osc.frequency.linearRampToValueAtTime(glideTo, t + duration);
+            gain.gain.setValueAtTime(vol, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + duration);
+        }
+
+        function playJumpSound() { playSound(300, 'sine', 0.15, 0.15, 600); }
+
+        function playLandSound() { playSound(120, 'triangle', 0.12, 0.08);
+            playSound(80, 'sine', 0.1, 0.05); }
+
+        function playDeathSound() {
+            playSound(40, 'sawtooth', 0.6, 0.4, 10);
+            playSound(25, 'square', 0.5, 0.3);
+            playSound(60, 'triangle', 0.3, 0.25, 20);
+        }
+
+        function playCrashSound() {
+            playSound(200, 'sawtooth', 0.2, 0.2, 50);
+            playSound(80, 'square', 0.25, 0.15);
+        }
+
+        function startBackgroundMusic() {
+            if (!audioCtx || musicPlaying) return;
+            musicPlaying = true;
+            const notes = [262, 330, 392, 330, 294, 349, 440, 349, 330, 392, 523, 392, 294, 330, 262, 330];
+            let noteIndex = 0;
+            const bpm = 70;
+            const beatDuration = 60 / bpm;
+
+            function playNextNote() {
+                if (!musicPlaying) return;
+                const freq = notes[noteIndex % notes.length];
+                const osc = audioCtx.createOscillator();
+                const noteGain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                noteGain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+                noteGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + beatDuration * 1.3);
+                osc.connect(noteGain);
+                noteGain.connect(musicGain);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + beatDuration * 1.5);
+                noteIndex++;
+                setTimeout(playNextNote, beatDuration * 1000);
+            }
+            playNextNote();
+        }
+
+        function stopMusic() {
+            musicPlaying = false;
+        }
+
+        // ==================== الإضاءة ====================
+        const ambientLight = new THREE.AmbientLight(0x8899bb, 1.8);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffeedd, 6);
+        sunLight.position.set(30, 40, 20);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 150;
+        sunLight.shadow.camera.left = -50;
+        sunLight.shadow.camera.right = 50;
+        sunLight.shadow.camera.top = 50;
+        sunLight.shadow.camera.bottom = -50;
+        sunLight.shadow.bias = -0.0001;
+        sunLight.shadow.normalBias = 0.02;
+        scene.add(sunLight);
+
+        const fillLight = new THREE.DirectionalLight(0xaaccff, 1.5);
+        fillLight.position.set(-15, 10, -10);
+        scene.add(fillLight);
+
+        const rimLight = new THREE.DirectionalLight(0xffffff, 2);
+        rimLight.position.set(0, 5, -25);
+        scene.add(rimLight);
+
+        // ==================== الأرض ====================
+        const groundGeometry = new THREE.PlaneGeometry(200, 300, 1, 1);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0xe8c170,
+            roughness: 0.85,
+            metalness: 0.1,
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.set(0, -0.15, 20);
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // شبكة خفيفة على الأرض للعمق
+        const gridHelper = new THREE.PolarGridHelper(100, 64, 48, 256, 0x000000, 0x000000);
+        gridHelper.position.y = -0.13;
+        gridHelper.material.opacity = 0.06;
+        gridHelper.material.transparent = true;
+        gridHelper.material.depthWrite = false;
+        scene.add(gridHelper);
+
+        // ==================== الضباب والسماء ====================
+        scene.fog = new THREE.Fog(0xe8c170, 30, 130);
+        scene.background = new THREE.Color(0x87ceeb);
+
+        // ==================== نظام الجسيمات ====================
+        const particlePools = [];
+        const MAX_PARTICLES = 600;
+
+        function createParticlePool() {
+            const geo = new THREE.SphereGeometry(0.15, 4, 4);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xff6600, roughness: 0.3, emissive: 0xff3300,
+                emissiveIntensity: 0.8 });
+            const pool = [];
+            for (let i = 0; i < MAX_PARTICLES; i++) {
+                const particle = new THREE.Mesh(geo, mat.clone());
+                particle.visible = false;
+                particle.userData = {
+                    velocity: new THREE.Vector3(),
+                    life: 0,
+                    maxLife: 0,
+                    active: false,
+                };
+                scene.add(particle);
+                pool.push(particle);
+            }
+            return pool;
+        }
+        const particles = createParticlePool();
+        let particleIndex = 0;
+
+        function spawnParticles(position, count, color, spread = 3, life = 0.8, emissiveColor = null) {
+            let spawned = 0;
+            for (let attempt = 0; attempt < count * 3 && spawned < count; attempt++) {
+                const p = particles[particleIndex];
+                if (!p.userData.active || p.userData.life <= 0) {
+                    p.position.copy(position);
+                    p.position.x += (Math.random() - 0.5) * spread;
+                    p.position.y += Math.random() * spread * 0.8;
+                    p.position.z += (Math.random() - 0.5) * spread;
+                    p.userData.velocity.set(
+                        (Math.random() - 0.5) * 10,
+                        Math.random() * 12 + 4,
+                        (Math.random() - 0.5) * 10
+                    );
+                    p.userData.life = life + Math.random() * 0.4;
+                    p.userData.maxLife = p.userData.life;
+                    p.userData.active = true;
+                    p.visible = true;
+                    p.material.color.set(color);
+                    if (emissiveColor) p.material.emissive.set(emissiveColor);
+                    else p.material.emissive.set(color);
+                    p.material.emissiveIntensity = 1.5;
+                    p.scale.setScalar(0.6 + Math.random() * 1.4);
+                    spawned++;
+                }
+                particleIndex = (particleIndex + 1) % MAX_PARTICLES;
+            }
+        }
+
+        function updateParticles(delta) {
+            for (const p of particles) {
+                if (p.userData.active) {
+                    p.userData.life -= delta;
+                    if (p.userData.life <= 0) {
+                        p.userData.active = false;
+                        p.visible = false;
+                    } else {
+                        p.userData.velocity.y -= 15 * delta;
+                        p.position.x += p.userData.velocity.x * delta;
+                        p.position.y += p.userData.velocity.y * delta;
+                        p.position.z += p.userData.velocity.z * delta;
+                        const progress = 1 - (p.userData.life / p.userData.maxLife);
+                        p.scale.setScalar(p.scale.x * (1 - progress * 0.9));
+                        p.material.emissiveIntensity = 1.5 * (1 - progress);
+                        if (p.position.y < -2) {
+                            p.userData.active = false;
+                            p.visible = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================== تأثير انفجار الشاحنة ====================
+        const debrisPool = [];
+        const MAX_DEBRIS = 400;
+        const debrisGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+
+        function createDebrisPool() {
+            const pool = [];
+            for (let i = 0; i < MAX_DEBRIS; i++) {
+                const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.3 });
+                const debris = new THREE.Mesh(debrisGeo, mat);
+                debris.visible = false;
+                debris.userData = {
+                    velocity: new THREE.Vector3(),
+                    angularVel: new THREE.Vector3(),
+                    life: 0,
+                    maxLife: 0,
+                    active: false,
+                };
+                debris.castShadow = true;
+                scene.add(debris);
+                pool.push(debris);
+            }
+            return pool;
+        }
+        const debrisObjects = createDebrisPool();
+        let debrisIndex = 0;
+
+        function spawnTruckExplosion(position, intensity = 1) {
+            const count = Math.floor(20 * intensity);
+            let spawned = 0;
+            for (let attempt = 0; attempt < count * 3 && spawned < count; attempt++) {
+                const d = debrisObjects[debrisIndex];
+                if (!d.userData.active || d.userData.life <= 0) {
+                    d.position.copy(position);
+                    d.position.x += (Math.random() - 0.5) * 2;
+                    d.position.y += Math.random() * 1.5;
+                    d.position.z += (Math.random() - 0.5) * 2;
+                    d.userData.velocity.set(
+                        (Math.random() - 0.5) * 14 * intensity,
+                        Math.random() * 10 * intensity + 3,
+                        (Math.random() - 0.5) * 14 * intensity
+                    );
+                    d.userData.angularVel.set(
+                        (Math.random() - 0.5) * 20,
+                        (Math.random() - 0.5) * 20,
+                        (Math.random() - 0.5) * 20
+                    );
+                    d.userData.life = 0.7 + Math.random() * 0.8;
+                    d.userData.maxLife = d.userData.life;
+                    d.userData.active = true;
+                    d.visible = true;
+                    d.scale.setScalar(0.5 + Math.random() * 1.8);
+                    d.material.color.setHSL(0.08 + Math.random() * 0.1, 0.05, 0.7 + Math.random() * 0.3);
+                    d.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI *
+                        2);
+                    spawned++;
+                }
+                debrisIndex = (debrisIndex + 1) % MAX_DEBRIS;
+            }
+            spawnParticles(position, Math.floor(25 * intensity), '#ff9944', 3 * intensity, 0.6, '#ff5500');
+            spawnParticles(position, Math.floor(15 * intensity), '#ffffff', 2 * intensity, 0.4, '#ffffff');
+            playCrashSound();
+        }
+
+        function updateDebris(delta) {
+            for (const d of debrisObjects) {
+                if (d.userData.active) {
+                    d.userData.life -= delta;
+                    if (d.userData.life <= 0) {
+                        d.userData.active = false;
+                        d.visible = false;
+                    } else {
+                        d.userData.velocity.y -= 18 * delta;
+                        d.position.x += d.userData.velocity.x * delta;
+                        d.position.y += d.userData.velocity.y * delta;
+                        d.position.z += d.userData.velocity.z * delta;
+                        d.rotation.x += d.userData.angularVel.x * delta;
+                        d.rotation.y += d.userData.angularVel.y * delta;
+                        d.rotation.z += d.userData.angularVel.z * delta;
+                        const prog = 1 - (d.userData.life / d.userData.maxLife);
+                        d.scale.setScalar(d.scale.x * Math.max(0.1, 1 - prog));
+                        if (d.position.y < -3) {
+                            d.userData.active = false;
+                            d.visible = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================== الشاحنات ====================
+        const trucks = [];
+        const truckGeometry = new THREE.BoxGeometry(2.8, 1.6, 5.5);
+        // إطار الشاحنة (الكابينة)
+        const cabinGeometry = new THREE.BoxGeometry(2.6, 1.3, 2.2);
+
+        function createTruck(x, y, z) {
+            const group = new THREE.Group();
+
+            // الجسم الرئيسي (الحاوية البيضاء)
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: 0.25,
+                metalness: 0.15,
+            });
+            const body = new THREE.Mesh(truckGeometry, bodyMat);
+            body.position.y = 0.8;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+
+            // الكابينة
+            const cabinMat = new THREE.MeshStandardMaterial({
+                color: 0xf5f5f5,
+                roughness: 0.3,
+                metalness: 0.2,
+            });
+            const cabin = new THREE.Mesh(cabinGeometry, cabinMat);
+            cabin.position.set(0, 0.65, -2.4);
+            cabin.castShadow = true;
+            cabin.receiveShadow = true;
+            group.add(cabin);
+
+            // خطوط زخرفية على الحاوية
+            const stripeGeo = new THREE.BoxGeometry(2.9, 0.12, 1.8);
+            const stripeMat = new THREE.MeshStandardMaterial({
+                color: 0xdddddd,
+                roughness: 0.2,
+                metalness: 0.4,
+                emissive: 0x111111,
+                emissiveIntensity: 0.3,
+            });
+            const stripe1 = new THREE.Mesh(stripeGeo, stripeMat);
+            stripe1.position.set(0, 1.55, 1.5);
+            stripe1.castShadow = true;
+            group.add(stripe1);
+            const stripe2 = new THREE.Mesh(stripeGeo, stripeMat);
+            stripe2.position.set(0, 1.55, -1.5);
+            stripe2.castShadow = true;
+            group.add(stripe2);
+
+            // عجلات
+            const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 16);
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.7, metalness: 0.1 });
+            const wheelPositions = [
+                [-1.5, -0.6, 1.8],
+                [1.5, -0.6, 1.8],
+                [-1.5, -0.6, -1.8],
+                [1.5, -0.6, -1.8],
+                [-1.5, -0.6, 3.2],
+                [1.5, -0.6, 3.2],
+                [-1.5, -0.6, -3.2],
+                [1.5, -0.6, -3.2],
+            ];
+            wheelPositions.forEach(([wx, wy, wz]) => {
+                const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+                wheel.rotation.z = Math.PI / 2;
+                wheel.position.set(wx, wy, wz);
+                wheel.castShadow = true;
+                wheel.receiveShadow = true;
+                group.add(wheel);
+            });
+
+            // أضواء
+            const lightGeo = new THREE.SphereGeometry(0.2, 8, 8);
+            const frontLightMat = new THREE.MeshStandardMaterial({
+                color: 0xffffcc,
+                roughness: 0.1,
+                emissive: 0xffffaa,
+                emissiveIntensity: 2,
+            });
+            const frontLight1 = new THREE.Mesh(lightGeo, frontLightMat);
+            frontLight1.position.set(1, 0.3, -3.5);
+            group.add(frontLight1);
+            const frontLight2 = new THREE.Mesh(lightGeo, frontLightMat);
+            frontLight2.position.set(-1, 0.3, -3.5);
+            group.add(frontLight2);
+
+            const rearLightMat = new THREE.MeshStandardMaterial({
+                color: 0xff0000,
+                roughness: 0.1,
+                emissive: 0xff0000,
+                emissiveIntensity: 1.5,
+            });
+            const rearLight1 = new THREE.Mesh(lightGeo, rearLightMat);
+            rearLight1.position.set(1, 0.3, 3.5);
+            group.add(rearLight1);
+            const rearLight2 = new THREE.Mesh(lightGeo, rearLightMat);
+            rearLight2.position.set(-1, 0.3, 3.5);
+            group.add(rearLight2);
+
+            group.position.set(x, y, z);
+            group.userData = {
+                originalY: y,
+                velocityY: 0,
+                isFalling: false,
+                hasExploded: false,
+                wobbleOffset: Math.random() * Math.PI * 2,
+                truckTopY: y + 1.6, // أعلى نقطة في الشاحنة
+            };
+
+            scene.add(group);
+            trucks.push(group);
+            return group;
+        }
+
+        function removeTruck(truck) {
+            if (!truck.userData.hasExploded) {
+                spawnTruckExplosion(truck.position.clone(), 0.8);
+                truck.userData.hasExploded = true;
+            }
+            scene.remove(truck);
+            const idx = trucks.indexOf(truck);
+            if (idx > -1) trucks.splice(idx, 1);
+            // تنظيف الأطفال
+            while (truck.children.length > 0) {
+                const child = truck.children[0];
+                if (child.material) child.material.dispose();
+                if (child.geometry) child.geometry.dispose();
+                truck.remove(child);
+            }
+        }
+
+        // ==================== اللاعب ====================
+        const playerGroup = new THREE.Group();
+        const playerBodyGeo = new THREE.SphereGeometry(0.5, 20, 20);
+        const playerBodyMat = new THREE.MeshStandardMaterial({
+            color: 0xff3355,
+            roughness: 0.2,
+            metalness: 0.5,
+            emissive: 0x330000,
+            emissiveIntensity: 0.6,
+        });
+        const playerBody = new THREE.Mesh(playerBodyGeo, playerBodyMat);
+        playerBody.castShadow = true;
+        playerBody.receiveShadow = true;
+        playerGroup.add(playerBody);
+
+        // حلقة حول اللاعب
+        const ringGeo = new THREE.TorusGeometry(0.6, 0.08, 16, 32);
+        const ringMat = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.1,
+            metalness: 0.8,
+            emissive: 0xffffff,
+            emissiveIntensity: 1.5,
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = 0;
+        playerGroup.add(ring);
+
+        // هالة صغيرة
+        const haloGeo = new THREE.SphereGeometry(0.65, 16, 16);
+        const haloMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.25,
+            depthWrite: false,
+        });
+        const halo = new THREE.Mesh(haloGeo, haloMat);
+        playerGroup.add(halo);
+
+        playerGroup.position.set(0, 3, 5);
+        playerGroup.castShadow = true;
+        scene.add(playerGroup);
+
+        const player = {
+            group: playerGroup,
+            body: playerBody,
+            ring: ring,
+            halo: halo,
+            velocityY: 0,
+            isOnTruck: false,
+            lastTruckY: 3,
+            targetX: 0,
+            currentX: 0,
+            moveSpeed: 8,
+            jumpForce: 14,
+            gravity: 28,
+            autoJumpCooldown: 0,
+            isDead: false,
+            invincibleTimer: 0,
+        };
+
+        // ==================== متغيرات اللعبة ====================
+        let score = 0;
+        let distanceTraveled = 0;
+        let gameSpeed = 8;
+        let truckSpawnTimer = 0;
+        let truckSpawnInterval = 1.8;
+        let currentBiome = 0; // 0=صحراء, 1=ثلج, 2=طبيعة
+        let biomeTimer = 0;
+        let isGameOver = false;
+        let screenShakeIntensity = 0;
+        let screenShakeDuration = 0;
+        let lastTruckZ = 5;
+        const truckPositions = []; // لتتبع مواقع الشاحنات للتصادم
+        let keysPressed = { left: false, right: false };
+        let touchActive = { left: false, right: false };
+
+        // ==================== البيئات ====================
+        const biomes = [
+            { name: '🏜️ صحراء', groundColor: 0xe8c170, fogColor: 0xe8c170, skyColor: 0xffd89b, lightColor: 0xffeedd,
+                ambientIntensity: 1.8, nameAr: 'صحراء' },
+            { name: '❄️ ثلج', groundColor: 0xe8eef5, fogColor: 0xd0dce8, skyColor: 0xdce8f0, lightColor: 0xe0e8ff,
+                ambientIntensity: 2.2, nameAr: 'ثلج' },
+            { name: '🌿 طبيعة', groundColor: 0x7cb342, fogColor: 0xa5d6a7, skyColor: 0x90caf9, lightColor: 0xfffde7,
+                ambientIntensity: 1.6, nameAr: 'طبيعة' },
+        ];
+
+        function applyBiome(biomeIndex) {
+            const biome = biomes[biomeIndex];
+            groundMaterial.color.set(biome.groundColor);
+            scene.fog.color.set(biome.fogColor);
+            scene.background = new THREE.Color(biome.skyColor);
+            sunLight.color.set(biome.lightColor);
+            ambientLight.intensity = biome.ambientIntensity;
+            document.getElementById('biome-name').textContent = biome.name;
+        }
+
+        // ==================== دوال المساعدة ====================
+        function getTruckTopY(truck) {
+            return truck.position.y + 1.6;
+        }
+
+        function checkLandingOnTruck() {
+            const px = player.group.position.x;
+            const py = player.group.position.y;
+            const pz = player.group.position.z;
+            const playerRadius = 0.5;
+
+            for (const truck of trucks) {
+                const tx = truck.position.x;
+                const ty = truck.position.y;
+                const tz = truck.position.z;
+                const topY = ty + 1.6;
+                const halfW = 1.4;
+                const halfL = 2.75;
+
+                // فحص إذا كان اللاعب فوق الشاحنة أفقياً
+                if (Math.abs(px - tx) < halfW + playerRadius &&
+                    Math.abs(pz - tz) < halfL + playerRadius) {
+                    // فحص إذا كان اللاعب يهبط على السطح العلوي
+                    if (py <= topY + 0.3 && py >= topY - 0.6 && player.velocityY <= 2) {
+                        return { landed: true, topY: topY, truck: truck };
+                    }
+                }
+            }
+            return { landed: false, topY: 0, truck: null };
+        }
+
+        function spawnTruckCluster(centerZ) {
+            const clusterSize = Math.min(2 + Math.floor(distanceTraveled / 80), 8);
+            const baseX = (Math.random() - 0.5) * 10;
+            const baseY = 1.2 + Math.random() * 4;
+
+            for (let i = 0; i < clusterSize; i++) {
+                const x = baseX + (Math.random() - 0.5) * 8;
+                const y = baseY + (Math.random() - 0.5) * 3;
+                const z = centerZ + (Math.random() - 0.5) * 8;
+                // تجنب التداخل الكبير
+                let tooClose = false;
+                for (const t of trucks) {
+                    const dx = t.position.x - x;
+                    const dz = t.position.z - z;
+                    if (Math.abs(dx) < 3.5 && Math.abs(dz) < 6.5) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                if (!tooClose && y > 0.8 && y < 10) {
+                    const truck = createTruck(x, y, z);
+                    truck.userData.originalY = y;
+                    truck.userData.truckTopY = y + 1.6;
+                }
+            }
+            lastTruckZ = centerZ;
+        }
+
+        function resetGame() {
+            // إزالة جميع الشاحنات
+            while (trucks.length > 0) {
+                removeTruck(trucks[0]);
+            }
+            // إعادة تعيين المتغيرات
+            score = 0;
+            distanceTraveled = 0;
+            gameSpeed = 8;
+            truckSpawnTimer = 0;
+            truckSpawnInterval = 1.8;
+            currentBiome = 0;
+            biomeTimer = 0;
+            isGameOver = false;
+            screenShakeIntensity = 0;
+            screenShakeDuration = 0;
+            lastTruckZ = 5;
+            player.velocityY = 0;
+            player.isOnTruck = false;
+            player.isDead = false;
+            player.invincibleTimer = 0;
+            player.group.position.set(0, 3, 5);
+            player.group.visible = true;
+            player.halo.visible = true;
+            player.ring.visible = true;
+            player.targetX = 0;
+            player.currentX = 0;
+            player.autoJumpCooldown = 0;
+            // إخفاء شاشة الموت
+            document.getElementById('death-overlay').style.display = 'none';
+            document.getElementById('score-value').textContent = '0';
+            document.getElementById('controls-hint').style.opacity = '1';
+            // إعادة البيئة
+            applyBiome(0);
+            // إنشاء شاحنات أولية
+            for (let z = 2; z < 35; z += 5 + Math.random() * 4) {
+                spawnTruckCluster(z);
+            }
+            // تشغيل الموسيقى
+            initAudio();
+        }
+
+        // ==================== أحداث التحكم ====================
+        function onKeyDown(e) {
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keysPressed.left = true;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keysPressed.right = true;
+            if (e.key === ' ' || e.key === 'Space') e.preventDefault();
+            initAudio();
+        }
+
+        function onKeyUp(e) {
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keysPressed.left = false;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keysPressed.right = false;
+        }
+
+        function onTouchStart(e) {
+            initAudio();
+            const touchX = e.touches[0].clientX;
+            const midScreen = window.innerWidth / 2;
+            if (touchX < midScreen) {
+                touchActive.left = true;
+                touchActive.right = false;
+            } else {
+                touchActive.right = true;
+                touchActive.left = false;
+            }
+            e.preventDefault();
+        }
+
+        function onTouchMove(e) {
+            const touchX = e.touches[0].clientX;
+            const midScreen = window.innerWidth / 2;
+            touchActive.left = touchX < midScreen;
+            touchActive.right = touchX >= midScreen;
+            e.preventDefault();
+        }
+
+        function onTouchEnd(e) {
+            touchActive.left = false;
+            touchActive.right = false;
+            e.preventDefault();
+        }
+
+        window.addEventListener('keydown', onKeyDown);
+        window.addEventListener('keyup', onKeyUp);
+        window.addEventListener('touchstart', onTouchStart, { passive: false });
+        window.addEventListener('touchmove', onTouchMove, { passive: false });
+        window.addEventListener('touchend', onTouchEnd, { passive: false });
+        window.addEventListener('click', initAudio);
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        document.getElementById('btn-restart').addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetGame();
+            initAudio();
+        });
+
+        // ==================== حلقة اللعبة ====================
+        const clock = new THREE.Clock();
+        let lastBiomeCheck = 0;
+
+        function update(deltaTime) {
+            if (isGameOver) {
+                // تحديث الجسيمات والحطام حتى بعد الموت
+                updateParticles(deltaTime);
+                updateDebris(deltaTime);
+                // تحديث الشاحنات للسقوط
+                for (const truck of trucks) {
+                    if (truck.userData.isFalling) {
+                        truck.userData.velocityY -= 25 * deltaTime;
+                        truck.position.y += truck.userData.velocityY * deltaTime;
+                        if (truck.position.y < -8) {
+                            removeTruck(truck);
+                            break;
+                        }
+                    }
+                }
+                // تنظيف الشاحنات التي سقطت
+                for (let i = trucks.length - 1; i >= 0; i--) {
+                    if (trucks[i].position.y < -8 && trucks[i].userData.isFalling) {
+                        removeTruck(trucks[i]);
+                    }
+                }
+                // اهتزاز الشاشة
+                if (screenShakeDuration > 0) {
+                    screenShakeDuration -= deltaTime;
+                    const sx = (Math.random() - 0.5) * screenShakeIntensity * 2;
+                    const sy = (Math.random() - 0.5) * screenShakeIntensity * 2;
+                    camera.position.x += sx;
+                    camera.position.y += sy;
+                    if (screenShakeDuration <= 0) {
+                        screenShakeIntensity = 0;
+                    }
+                }
+                return;
+            }
+
+            const dt = Math.min(deltaTime, 0.1);
+
+            // تحديث المسافة
+            distanceTraveled += gameSpeed * dt;
+            score = Math.floor(distanceTraveled);
+            document.getElementById('score-value').textContent = score;
+
+            // تغيير البيئة كل 100
+            const biomeCheck = Math.floor(distanceTraveled / 100);
+            if (biomeCheck !== lastBiomeCheck) {
+                lastBiomeCheck = biomeCheck;
+                currentBiome = biomeCheck % 3;
+                applyBiome(currentBiome);
+                // تأثير انتقالي
+                spawnParticles(player.group.position.clone(), 30, '#ffffff', 6, 0.5, '#ffffcc');
+            }
+
+            // زيادة الصعوبة
+            gameSpeed = 8 + distanceTraveled * 0.03;
+            truckSpawnInterval = Math.max(0.5, 1.8 - distanceTraveled * 0.008);
+
+            // تحديث التحكم
+            let moveInput = 0;
+            if (keysPressed.left || touchActive.left) moveInput = -1;
+            if (keysPressed.right || touchActive.right) moveInput += 1;
+            moveInput = Math.max(-1, Math.min(1, moveInput));
+
+            player.targetX += moveInput * player.moveSpeed * dt;
+            player.targetX = Math.max(-14, Math.min(14, player.targetX));
+            player.currentX += (player.targetX - player.currentX) * Math.min(1, 18 * dt);
+            player.group.position.x = player.currentX;
+
+            // فيزياء القفز
+            player.velocityY -= player.gravity * dt;
+            player.group.position.y += player.velocityY * dt;
+
+            // فحص الهبوط على شاحنة
+            const landing = checkLandingOnTruck();
+            if (landing.landed && player.velocityY <= 2) {
+                player.group.position.y = landing.topY + 0.55;
+                player.velocityY = player.jumpForce;
+                player.isOnTruck = true;
+                player.lastTruckY = landing.topY;
+                player.autoJumpCooldown = 0.05;
+                playLandSound();
+                // تأثير خفيف
+                spawnParticles(
+                    new THREE.Vector3(player.group.position.x, landing.topY, player.group.position.z),
+                    5, '#ffffff', 1, 0.2, '#cccccc'
+                );
+                // اهتزاز خفيف للشاحنة
+                if (landing.truck && !landing.truck.userData.isFalling) {
+                    landing.truck.position.y -= 0.08;
+                    setTimeout(() => {
+                        if (landing.truck && landing.truck.position) {
+                            landing.truck.position.y += 0.08;
+                        }
+                    }, 60);
+                }
+            } else if (player.velocityY < -2 && player.group.position.y < 0.3) {
+                // سقط على الأرض - موت
+                triggerDeath();
+            }
+
+            // إذا كان في الهواء لفترة طويلة بدون شاحنة تحتيه
+            if (player.velocityY < -15 && player.group.position.y < -1) {
+                triggerDeath();
+            }
+
+            // تحديث شاحنات اللعبة
+            truckSpawnTimer += dt;
+            if (truckSpawnTimer >= truckSpawnInterval) {
+                truckSpawnTimer = 0;
+                const spawnZ = player.group.position.z + 25 + Math.random() * 20;
+                spawnTruckCluster(spawnZ);
+            }
+
+            // إزالة الشاحنات البعيدة خلف اللاعب
+            const removeThreshold = player.group.position.z - 20;
+            for (let i = trucks.length - 1; i >= 0; i--) {
+                const truck = trucks[i];
+                if (truck.position.z < removeThreshold && !truck.userData.isFalling) {
+                    removeTruck(truck);
+                }
+            }
+
+            // تحريك الشاحنات للأمام (محاكاة حركة اللاعب)
+            for (const truck of trucks) {
+                truck.position.z -= gameSpeed * dt;
+                // تمايل بسيط
+                truck.userData.wobbleOffset += dt * 1.5;
+                const wobble = Math.sin(truck.userData.wobbleOffset) * 0.3;
+                if (!truck.userData.isFalling) {
+                    truck.position.x += wobble * dt * 0.5;
+                }
+            }
+
+            // تحديث آخر موقع z للاعب (يتحرك مع الشاحنات نسبياً)
+            // في هذه اللعبة، اللاعب يبقى في نفس النطاق z تقريباً، والشاحنات تتحرك
+
+            // فحص إضافي: هل اللاعب فوق الأرض مباشرة بدون شاحنات؟
+            if (player.group.position.y < 0.25 && player.velocityY < 0) {
+                triggerDeath();
+            }
+
+            // تصادم الشاحنات مع بعضها (انقلاب وتكسير)
+            for (let i = 0; i < trucks.length; i++) {
+                for (let j = i + 1; j < trucks.length; j++) {
+                    const t1 = trucks[i];
+                    const t2 = trucks[j];
+                    if (t1.userData.isFalling || t2.userData.isFalling) continue;
+                    const dx = t1.position.x - t2.position.x;
+                    const dy = t1.position.y - t2.position.y;
+                    const dz = t1.position.z - t2.position.z;
+                    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (dist < 3.5 && dist > 0.01 && Math.abs(dz) < 5 && Math.abs(dx) < 3) {
+                        // تصادم! جعل إحدى الشاحنتين تنقلب
+                        const collisionPoint = new THREE.Vector3(
+                            (t1.position.x + t2.position.x) / 2,
+                            (t1.position.y + t2.position.y) / 2,
+                            (t1.position.z + t2.position.z) / 2
+                        );
+                        if (Math.random() < 0.5 && !t1.userData.isFalling) {
+                            t1.userData.isFalling = true;
+                            t1.userData.velocityY = 3 + Math.random() * 5;
+                            spawnTruckExplosion(collisionPoint, 1.2);
+                            // دوران عشوائي للشاحنة
+                            t1.rotation.x += (Math.random() - 0.5) * 1.5;
+                            t1.rotation.z += (Math.random() - 0.5) * 1.5;
+                        } else if (!t2.userData.isFalling) {
+                            t2.userData.isFalling = true;
+                            t2.userData.velocityY = 3 + Math.random() * 5;
+                            spawnTruckExplosion(collisionPoint, 1.2);
+                            t2.rotation.x += (Math.random() - 0.5) * 1.5;
+                            t2.rotation.z += (Math.random() - 0.5) * 1.5;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // تحديث الشاحنات المتساقطة
+            for (const truck of trucks) {
+                if (truck.userData.isFalling) {
+                    truck.userData.velocityY -= 20 * dt;
+                    truck.position.y += truck.userData.velocityY * dt;
+                    truck.rotation.x += (Math.random() - 0.5) * 8 * dt;
+                    truck.rotation.z += (Math.random() - 0.5) * 8 * dt;
+                    if (truck.position.y < -10) {
+                        removeTruck(truck);
+                    }
+                }
+            }
+
+            // تنظيف الشاحنات المتساقطة
+            for (let i = trucks.length - 1; i >= 0; i--) {
+                if (trucks[i].position.y < -10 && trucks[i].userData.isFalling) {
+                    removeTruck(trucks[i]);
+                }
+            }
+
+            // تحديث الجسيمات والحطام
+            updateParticles(dt);
+            updateDebris(dt);
+
+            // تحديث الهالة
+            player.halo.scale.setScalar(1 + Math.sin(Date.now() * 0.01) * 0.2);
+            player.halo.material.opacity = 0.2 + Math.sin(Date.now() * 0.008) * 0.1;
+            player.ring.rotation.z += dt * 3;
+            player.ring.material.emissiveIntensity = 1 + Math.sin(Date.now() * 0.006) * 0.8;
+
+            // اهتزاز الشاشة
+            if (screenShakeDuration > 0) {
+                screenShakeDuration -= dt;
+                const sx = (Math.random() - 0.5) * screenShakeIntensity * 2;
+                const sy = (Math.random() - 0.5) * screenShakeIntensity * 2;
+                camera.position.x += sx;
+                camera.position.y += sy;
+                if (screenShakeDuration <= 0) {
+                    screenShakeIntensity = 0;
+                }
+            }
+
+            // تحديث الكاميرا
+            const targetCamX = player.group.position.x * 0.5;
+            const targetCamY = player.group.position.y + 4;
+            const targetCamZ = player.group.position.z + 8;
+            camera.position.x += (targetCamX - camera.position.x) * 6 * dt;
+            camera.position.y += (targetCamY - camera.position.y) * 5 * dt;
+            camera.position.z += (targetCamZ - camera.position.z) * 8 * dt;
+            camera.lookAt(
+                player.group.position.x,
+                player.group.position.y + 1.5,
+                player.group.position.z - 3
+            );
+
+            // إخفاء تلميح التحكم بعد فترة
+            if (distanceTraveled > 30) {
+                document.getElementById('controls-hint').style.opacity = '0';
+            }
+        }
+
+        function triggerDeath() {
+            if (isGameOver || player.isDead) return;
+            player.isDead = true;
+            isGameOver = true;
+            player.group.visible = false;
+            player.halo.visible = false;
+            player.ring.visible = false;
+
+            // تأثير موت قوي
+            const deathPos = player.group.position.clone();
+            deathPos.y = Math.max(0.2, deathPos.y);
+            spawnParticles(deathPos, 80, '#ff2200', 8, 1.2, '#ff0000');
+            spawnParticles(deathPos, 50, '#ffaa00', 6, 0.9, '#ff6600');
+            spawnParticles(deathPos, 30, '#ffffff', 5, 0.6, '#ffffff');
+
+            // حطام إضافي
+            for (let i = 0; i < 25; i++) {
+                const d = debrisObjects[debrisIndex];
+                if (!d || d.userData.active) continue;
+                d.position.copy(deathPos);
+                d.position.x += (Math.random() - 0.5) * 3;
+                d.position.z += (Math.random() - 0.5) * 3;
+                d.userData.velocity.set(
+                    (Math.random() - 0.5) * 20,
+                    Math.random() * 15 + 5,
+                    (Math.random() - 0.5) * 20
+                );
+                d.userData.angularVel.set((Math.random() - 0.5) * 25, (Math.random() - 0.5) * 25, (Math.random() -
+                    0.5) * 25);
+                d.userData.life = 1 + Math.random();
+                d.userData.maxLife = d.userData.life;
+                d.userData.active = true;
+                d.visible = true;
+                d.scale.setScalar(0.3 + Math.random() * 1.5);
+                d.material.color.setHSL(Math.random() * 0.1, 0.8, 0.5 + Math.random() * 0.5);
+                debrisIndex = (debrisIndex + 1) % MAX_DEBRIS;
+            }
+
+            playDeathSound();
+            screenShakeIntensity = 3;
+            screenShakeDuration = 0.6;
+            stopMusic();
+
+            // إظهار شاشة الموت
+            document.getElementById('death-overlay').style.display = 'flex';
+            document.getElementById('final-score').textContent = 'المسافة: ' + score;
+            document.getElementById('controls-hint').style.opacity = '0';
+
+            // إسقاط جميع الشاحنات القريبة
+            for (const truck of trucks) {
+                const dist = Math.abs(truck.position.z - deathPos.z);
+                if (dist < 15 && !truck.userData.isFalling) {
+                    truck.userData.isFalling = true;
+                    truck.userData.velocityY = 2 + Math.random() * 6;
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const deltaTime = clock.getDelta();
+            update(deltaTime);
+            renderer.render(scene, camera);
+        }
+
+        // ==================== بدء اللعبة ====================
+        function startGame() {
+            applyBiome(0);
+            lastBiomeCheck = 0;
+            // إنشاء شاحنات أولية
+            for (let z = 2; z < 35; z += 4 + Math.random() * 5) {
+                spawnTruckCluster(z);
+            }
+            // ضع اللاعب على أول شاحنة
+            if (trucks.length > 0) {
+                const firstTruck = trucks[0];
+                player.group.position.set(
+                    firstTruck.position.x,
+                    getTruckTopY(firstTruck) + 0.55,
+                    firstTruck.position.z
+                );
+                player.lastTruckY = getTruckTopY(firstTruck);
+                player.velocityY = player.jumpForce;
+                player.targetX = firstTruck.position.x;
+                player.currentX = firstTruck.position.x;
+            }
+            camera.position.set(0, 7, 13);
+            camera.lookAt(0, 3, 3);
+            document.getElementById('death-overlay').style.display = 'none';
+            document.getElementById('score-value').textContent = '0';
+            document.getElementById('controls-hint').style.opacity = '1';
+            animate();
+        }
+
+        // بدء الموسيقى عند أول تفاعل
+        document.addEventListener('click', function startAudio() {
+            initAudio();
+        }, { once: true });
+        document.addEventListener('keydown', function startAudioKey() {
+            initAudio();
+        }, { once: true });
+        document.addEventListener('touchstart', function startAudioTouch() {
+            initAudio();
+        }, { once: true });
+
+        startGame();
+
+        console.log('🚛 Cluster Truck - لعبة القفز بين الشاحنات جاهزة!');
+        console.log('🎮 التحكم: A/D أو الأسهم يمين/يسار');
+        console.log('📱 الجوال: المس يمين/يسار الشاشة');
+        console.log('🏜️❄️🌿 البيئة تتغير كل 100 مسافة');
+        console.log('💀 السقوط على الأرض = خسارة');
+    </script>
+</body>
+</html>
